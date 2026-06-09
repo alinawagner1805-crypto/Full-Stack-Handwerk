@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Secrets
+.env
+
+# Datenbank
+*.db
+*.sqlite
+
+# Modelle
+models/*.pkl
+
+# Editor
+.vscode/
+*.swp
+
+# Alembic
+alembic/versions/*.pyc

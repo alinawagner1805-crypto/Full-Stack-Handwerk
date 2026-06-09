@@ -1,0 +1,8 @@
+[Unit]
+Description=PixelWise Stats Snapshot
+
+[Service]
+Type=oneshot
+User=produser
+EnvironmentFile=/opt/pixelwise/.env
+ExecStart=/opt/pixelwise/collect_stats.sh

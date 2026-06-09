@@ -1,0 +1,271 @@
+\documentclass[12pt, a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[ngerman]{babel}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+
+\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+
+\definecolor{dhbwred}{RGB}{226, 0, 26}
+\definecolor{codebg}{RGB}{245, 245, 245}
+\definecolor{codeframe}{RGB}{200, 200, 200}
+\definecolor{keyword}{RGB}{0, 0, 180}
+\definecolor{comment}{RGB}{100, 100, 100}
+
+\lstdefinestyle{base}{
+  backgroundcolor=\color{codebg}, frame=single, rulecolor=\color{codeframe},
+  basicstyle=\ttfamily\footnotesize, keywordstyle=\color{keyword}\bfseries,
+  commentstyle=\color{comment}\itshape,
+  showstringspaces=false, breaklines=true, captionpos=b,
+  numbers=left, numberstyle=\tiny\color{comment}, numbersep=6pt, tabsize=4,
+}
+\lstdefinestyle{sql}{style=base, language=SQL}
+\lstdefinestyle{bash}{style=base, language=bash}
+\lstset{style=base}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Full Stack Handwerk -- Projektbericht}
+\fancyhead[R]{\small DHBW Ravensburg}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\hypersetup{colorlinks=true, linkcolor=black, urlcolor=dhbwred}
+
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}[\color{dhbwred}\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+
+% Hilfsmakro fuer Repo-Links
+\newcommand{\repolink}[2]{\href{https://github.com/alinawagner1805-crypto/Full-Stack-Handwerk/#1}{#2}}
+
+\begin{document}
+
+% ── Titelseite ────────────────────────────────────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{1.5cm}
+  {\color{dhbwred}\rule{\linewidth}{1.5pt}}\vspace{0.5cm}
+
+  {\Huge\bfseries Projektbericht\\[0.4em]\large Full Stack Handwerk}
+
+  \vspace{0.3cm}
+  {\color{dhbwred}\rule{\linewidth}{1.5pt}}\vspace{1.5cm}
+
+  {\LARGE\bfseries GET /stats -- Prediction Analytics Endpoint}\\[0.8em]
+  {\large Erweiterung von Block~6: Datenbanken \& SQL}
+
+  \vspace{2.5cm}
+  \begin{tabular}{ll}
+    \textbf{Verfasserin:}    & Alina Wagner \\[0.4em]
+    \textbf{Matrikelnummer:} & -- \\[0.4em]
+    \textbf{Kurs:}           & DSKI, DHBW Ravensburg \\[0.4em]
+    \textbf{Dozent:}         & Prof.\ Dr.-Ing.\ Mark Schutera \\[0.4em]
+    \textbf{Datum:}          & \today \\
+  \end{tabular}
+
+  \vfill
+  {\small Dualer Partner: ZDF \\ DHBW Ravensburg -- Studiengang Data Science \& KI}
+  \vspace{1cm}
+  {\color{dhbwred}\rule{\linewidth}{0.8pt}}
+\end{titlepage}
+
+% ── Inhaltsverzeichnis ────────────────────────────────────────────────────────
+\tableofcontents
+\thispagestyle{fancy}
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Einleitung und Motivation}
+
+Im Rahmen des Kurses \emph{Full Stack Handwerk} entstand PixelWise -- eine
+Webanwendung zur Erkennung handgeschriebener Ziffern mit Machine Learning.
+Mit Block~6 kam eine PostgreSQL-Datenbank hinzu, die jede Klassifikation in
+der Tabelle \texttt{predictions} persistiert. Der einzige lesende Endpoint
+im Auslieferungszustand, \texttt{GET /results}, gibt dabei die letzten
+20~Eintraege chronologisch aus. Analytische Fragen wie \textit{,,Bei welcher
+Ziffer ist das Modell am unsichersten?''} oder \textit{,,Hat sich die
+Konfidenz nach einem Modellwechsel verbessert?''} bleiben damit unbeantwortet.
+
+Diese Erweiterung behebt genau das: mit einem neuen Endpoint
+\texttt{GET /stats}, der die Datenbank mit fortgeschrittenen SQL-Mitteln
+auswertet, und einem automatisierten Run per systemd-Timer, der den Endpoint
+taeglich aufruft und Ergebnisse als JSON-Snapshots speichert -- integriert
+in die bestehende Serverinfrastruktur aus Block~5.
+
+Alle Implementierungsdetails, vollstaendige SQL-Abfragen und der gesamte
+Quellcode sind im zugehoerigen GitHub-Repository verfuegbar:\\
+\url{https://github.com/alinawagner1805-crypto/Full-Stack-Handwerk}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{SQL-Konzepte und Implementierung}
+
+Der Kurs behandelt \texttt{INSERT} und einfaches \texttt{SELECT} ueber das
+SQLAlchemy-ORM. Diese Erweiterung geht in der Datenbankschicht bewusst
+weiter -- eine ausfuehrliche Gegenuebertstellung aller SQL-Konzepte findet
+sich unter
+\repolink{blob/main/docs/sql\_konzepte.md}{\texttt{docs/sql\_konzepte.md}}.
+
+\subsection{Aggregationen: GROUP BY, COUNT, AVG und HAVING}
+
+Die Kernabfrage gruppiert alle Predictions nach Ziffer und berechnet
+Haeufigkeit sowie Durchschnittskonfidenz. Mit \texttt{HAVING} lassen sich
+anschliessend Gruppen nach ihrem Aggregatwert filtern -- semantisch
+verschieden von \texttt{WHERE}, das einzelne Zeilen \emph{vor} der
+Aggregation entfernt und damit den Durchschnitt verfaelscht:
+
+\begin{lstlisting}[style=sql, caption={Aggregation mit HAVING-Filter}]
+SELECT prediction,
+       COUNT(*)                           AS anzahl,
+       ROUND(AVG(confidence)::numeric, 4) AS avg_konfidenz
+FROM predictions
+GROUP BY prediction
+HAVING AVG(confidence) < 0.80
+ORDER BY avg_konfidenz ASC;
+\end{lstlisting}
+
+Im Endpoint als optionaler Parameter: \texttt{GET /stats?confidence\_below=0.80}.
+
+\subsection{Zeitreihe, Window Function und Filterparameter}
+
+Fuer die tagesweise Aufschluesselung wird \texttt{created\_at} per
+\texttt{CAST AS DATE} auf den reinen Datumsteil reduziert und als
+\texttt{GROUP BY}-Schluessel verwendet. Ergaenzend berechnet eine
+Window Function (\texttt{RANK() OVER (PARTITION BY prediction ORDER BY
+confidence DESC)}) den Rang jeder Prediction innerhalb ihrer Zifferngruppe,
+ohne die Zeilen zu kollabieren -- das ist der wesentliche Unterschied zu
+\texttt{GROUP BY}, bei dem Originalzeilen verloren gehen.
+
+Alle Filterparameter sind optional und kombinierbar:
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  \textbf{Parameter} & \textbf{Beispiel} & \textbf{Wirkung} \\
+  \midrule
+  \texttt{model\_version}   & \texttt{?model\_version=v1}    & Nur eine Modellversion \\
+  \texttt{since}            & \texttt{?since=2026-01-01}     & Ab einem Datum \\
+  \texttt{confidence\_below}& \texttt{?confidence\_below=0.8}& Schwellenwertfilter \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Performance-Analyse mit EXPLAIN ANALYZE}
+
+Ohne Index liest PostgreSQL die gesamte Tabelle bei jeder Abfrage zeilenweise
+(\emph{Sequential Scan}). Mit einem B-Tree-Index auf \texttt{created\_at}
+kann die Datenbank bei gefilterten Anfragen direkt auf relevante Bereiche
+zugreifen (\emph{Index Scan}). \texttt{EXPLAIN ANALYZE} fuehrt die Abfrage
+tatsaechlich aus und liefert den realen Ausfuehrungsplan:
+
+\begin{lstlisting}[style=bash, caption={EXPLAIN ANALYZE -- vor und nach dem Index}]
+-- Ohne Index (Sequential Scan):
+Seq Scan on predictions  (cost=0.00..5.00 rows=200)
+  Planning Time: 1.3 ms  |  Execution Time: 0.9 ms
+
+-- Nach: CREATE INDEX ix_predictions_created_at ON predictions(created_at);
+Index Scan using ix_predictions_created_at on predictions
+  Planning Time: 0.4 ms  |  Execution Time: 0.2 ms
+\end{lstlisting}
+
+Die Ausfuehrungszeit sinkt von 0{,}9\,ms auf 0{,}2\,ms (Faktor~4{,}5).
+Entscheidend ist, dass der Vorteil mit dem Datenvolumen skaliert: Sequential
+Scan waechst linear, Index Scan logarithmisch. Den vollstaendigen Query Plan
+mit Kostenschaetzungen findet sich unter
+\repolink{blob/main/docs/performance.md}{\texttt{docs/performance.md}}.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Integration in die Infrastruktur}
+
+\subsection{Automatisierter Run per systemd-Timer}
+
+Ein Endpoint der nur auf Anfrage antwortet, erkennt keine Veraenderungen ueber
+Zeit. Deshalb wird \texttt{GET /stats} taeglich per systemd-Timer aufgerufen
+(\texttt{OnCalendar=*-*-* 02:00:00}) und das Ergebnis als datierte JSON-Datei
+unter \texttt{/opt/pixelwise/stats\_snapshots/} gespeichert.
+\texttt{Persistent=true} stellt sicher, dass verpasste Runs nach einem
+Serverneustart automatisch nachgeholt werden. Der vollstaendige Aufbau mit
+Service-Unit, Timer-Unit und Shell-Skript ist dokumentiert unter
+\repolink{blob/main/docs/monitoring.md}{\texttt{docs/monitoring.md}}.
+
+\subsection{Baseline-Vergleich und Messbarkeit}
+
+Die gespeicherten Snapshots ermoeglichen einen direkten Vorher-Nachher-
+Vergleich ueber Modellversionen hinweg. Das Skript \texttt{compare\_stats.py}
+liest zwei JSON-Dateien und gibt Konfidenz-Deltas je Ziffer aus:
+
+\begin{lstlisting}[style=bash, caption={Baseline-Vergleich: v1 vs. v2}]
+Gesamt-Predictions:  200 -> 487
+Avg Konfidenz:    0.8741 -> 0.9012  (+0.0271)
+
+Ziffer     Vorher    Nachher      Delta
+6          0.7854     0.8231    +0.0377
+9          0.7621     0.8105    +0.0484
+\end{lstlisting}
+
+Der gesamte Ablauf -- vom Einspielen der Testdaten bis zum Vergleich -- laesst
+sich mit \texttt{demo/live\_demo.sh} in einem Schritt reproduzieren.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Probleme, Ergebnis und Ausblick}
+
+\subsection{Aufgetretene Probleme}
+
+Drei Probleme traten waehrend der Implementierung auf. \texttt{func.avg()}
+liefert bei leerer Tabelle \texttt{None} -- abgefangen durch eine explizite
+Nullpruefung vor dem \texttt{float()}-Cast. \texttt{CAST AS DATE} verhaelt
+sich in SQLite und PostgreSQL unterschiedlich; generisches \texttt{str(r.day)}
+loest das ohne separate Codepfade. Der Konfidenzfilter wurde initial mit
+\texttt{WHERE} statt \texttt{HAVING} umgesetzt -- was den Durchschnitt
+verfaelscht haette, da einzelne Predictions vor der Aggregation entfernt
+worden waeren. Der Fehler fiel beim direkten Vergleich mit einer psql-Abfrage
+auf.
+
+\subsection{Ergebnis}
+
+\texttt{GET /stats} liefert Gesamtmetriken, eine Ziffernaufschluesselung
+mit \texttt{HAVING}-Filter, eine Tages-Zeitreihe und eine Window-Function-
+basierte Rangberechnung. Der Index auf \texttt{created\_at} ist empirisch
+mit \texttt{EXPLAIN ANALYZE} belegt. Der systemd-Timer integriert den
+Endpoint in die bestehende Infrastruktur und schafft durch taeglich
+gespeicherte Snapshots die Grundlage fuer messbare Modellvergleiche.
+
+\subsection{Ausblick}
+
+Als naechster Schritt waere ein Feedback-Endpoint sinnvoll, ueber den Nutzer
+falsche Predictions korrigieren koennen. Kombiniert mit der
+\texttt{by\_digit}-Aufschluesselung entstaende eine Konfusionsmatrix, und
+die Snapshots bildeten automatisch die Datengrundlage fuer spaeteres
+Modell-Retraining -- ohne zusaetzliche Infrastruktur.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section*{Quellen}
+\addcontentsline{toc}{section}{Quellen}
+
+\begin{itemize}[noitemsep]
+  \item Schutera, M.\ (2026). \textit{Full Stack Handwerk -- Unfinished Lecture Notes}.
+        DHBW Ravensburg. \url{https://github.com/Quillstacks/LectureMaterial}
+  \item PostgreSQL Global Development Group (2024). \textit{PostgreSQL 16 -- EXPLAIN}.
+        \url{https://www.postgresql.org/docs/16/sql-explain.html}
+  \item PostgreSQL Global Development Group (2024). \textit{PostgreSQL 16 -- Window Functions}.
+        \url{https://www.postgresql.org/docs/16/tutorial-window.html}
+  \item SQLAlchemy Documentation (2024). \textit{Column Elements -- func}.
+        \url{https://docs.sqlalchemy.org/en/20/core/functions.html}
+  \item systemd Documentation (2024). \textit{systemd.timer}.
+        \url{https://www.freedesktop.org/software/systemd/man/systemd.timer.html}
+\end{itemize}
+
+\end{document}
