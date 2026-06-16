@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Date
+from sqlalchemy import func
 from app.models import Prediction
 from app.schemas import StatsResponse, DigitStats, DayStats
 from datetime import datetime
@@ -61,7 +61,7 @@ def get_stats(
     by_day_rows = (
         query
         .with_entities(
-            cast(Prediction.created_at, Date).label("day"),
+            func.date(Prediction.created_at).label("day"),
             func.count().label("cnt"),
             func.avg(Prediction.confidence).label("avg_conf"),
         )
